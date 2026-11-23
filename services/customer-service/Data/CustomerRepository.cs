@@ -106,6 +106,33 @@ public class CustomerRepository
         return result.DeletedCount == 1;
     }
 
+    /// <summary>
+    /// Crée le profil client d'un utilisateur inscrit (même id que l'utilisateur). Idempotent :
+    /// retourne false si le profil existe déjà (id ou email).
+    /// </summary>
+    public async Task<bool> EnsureFromUserAsync(string userId, string firstName, string lastName, string email, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var customer = new Customer
+        {
+            Id = userId,
+            FirstName = firstName.Trim(),
+            LastName = lastName.Trim(),
+            Email = email.Trim().ToLowerInvariant(),
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        try
+        {
+            await _customers.InsertOneAsync(customer, cancellationToken: ct);
+            return true;
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
+    }
+
     // --- Mises à jour issues des événements de commande (idempotentes) ---
 
     /// <summary>Ajoute la commande au client si elle n'y est pas déjà (rejouer l'événement ne compte pas deux fois).</summary>

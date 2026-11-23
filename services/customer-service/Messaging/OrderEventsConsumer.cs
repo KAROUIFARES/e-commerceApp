@@ -18,10 +18,13 @@ public class RabbitMqOptions
 
 public record OrderEvent(string? EventId, string? Type, DateTime OccurredAt, OrderEventData? Data);
 public record OrderEventData(string? OrderId, string? CustomerId, decimal Total);
+public record UserRegisteredEvent(string? EventId, string? Type, DateTime OccurredAt, UserRegisteredData? Data);
+public record UserRegisteredData(string? UserId, string? FirstName, string? LastName, string? Email);
 
 /// <summary>
 /// Consomme les événements order.created / order.cancelled publiés par l'order-service
-/// pour tenir à jour le nombre de commandes et le montant total dépensé par client.
+/// pour tenir à jour le nombre de commandes et le montant total dépensé par client,
+/// et user.registered (identity-service) pour créer le profil client de l'utilisateur.
 /// </summary>
 public class OrderEventsConsumer(
     RabbitMqOptions options,
@@ -69,6 +72,7 @@ public class OrderEventsConsumer(
         await channel.QueueDeclareAsync(options.Queue, durable: true, exclusive: false, autoDelete: false, cancellationToken: ct);
         await channel.QueueBindAsync(options.Queue, options.Exchange, "order.created", cancellationToken: ct);
         await channel.QueueBindAsync(options.Queue, options.Exchange, "order.cancelled", cancellationToken: ct);
+        await channel.QueueBindAsync(options.Queue, options.Exchange, "user.registered", cancellationToken: ct);
         await channel.BasicQosAsync(0, 10, false, ct);
 
         var closed = new TaskCompletionSource();
@@ -104,6 +108,19 @@ public class OrderEventsConsumer(
 
     private async Task HandleAsync(string routingKey, ReadOnlyMemory<byte> body, CancellationToken ct)
     {
+        if (routingKey == "user.registered")
+        {
+            var reg = JsonSerializer.Deserialize<UserRegisteredEvent>(Encoding.UTF8.GetString(body.Span), JsonOptions)?.Data;
+            if (reg?.UserId is null || !CustomerRepository.IsValidId(reg.UserId) || string.IsNullOrWhiteSpace(reg.Email))
+                throw new JsonException("Données manquantes ou invalides dans l'événement user.registered");
+
+            var created = await repository.EnsureFromUserAsync(
+                reg.UserId, reg.FirstName ?? "", reg.LastName ?? "", reg.Email, ct);
+            logger.LogInformation("user.registered traité : client {CustomerId} {Result}",
+                reg.UserId, created ? "créé" : "déjà existant");
+            return;
+        }
+
         var evt = JsonSerializer.Deserialize<OrderEvent>(Encoding.UTF8.GetString(body.Span), JsonOptions);
         var data = evt?.Data;
         if (data?.OrderId is null || data.CustomerId is null || !CustomerRepository.IsValidId(data.CustomerId))

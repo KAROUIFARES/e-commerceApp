@@ -6,7 +6,7 @@ try {
 }
 
 module.exports = {
-  port: Number(process.env.PORT ?? 3000),
+  port: Number(process.env.PORT ?? 3100),
   mongoUri:
     process.env.MONGO_URI ??
     'mongodb://admin:admin123@localhost:27017/orderdb?authSource=admin',
