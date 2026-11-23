@@ -66,14 +66,26 @@ export async function request(path, { method = 'GET', body, auth = true } = {}) 
   return data
 }
 
+const qs = (params = {}) =>
+  new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString()
+
 export const api = {
   signUp: (payload) => request('/api/auth/signup', { method: 'POST', body: payload, auth: false }),
   signIn: (payload) => request('/api/auth/signin', { method: 'POST', body: payload, auth: false }),
-  products: (params = {}) => request(`/api/products?${new URLSearchParams(params)}`, { auth: false }),
-  createProduct: (payload) => request('/api/products', { method: 'POST', body: payload }),
-  customer: (id) => request(`/api/customers/${id}`),
-  orders: (params = {}) => request(`/api/orders?${new URLSearchParams(params)}`),
-  createOrder: (payload) => request('/api/orders', { method: 'POST', body: payload }),
+
+  customers: (params) => request(`/api/customers?${qs(params)}`),
+  createCustomer: (body) => request('/api/customers', { method: 'POST', body }),
+  updateCustomer: (id, body) => request(`/api/customers/${id}`, { method: 'PUT', body }),
+  deleteCustomer: (id) => request(`/api/customers/${id}`, { method: 'DELETE' }),
+
+  products: (params) => request(`/api/products?${qs(params)}`),
+  createProduct: (body) => request('/api/products', { method: 'POST', body }),
+  updateProduct: (id, body) => request(`/api/products/${id}`, { method: 'PUT', body }),
+  deleteProduct: (id) => request(`/api/products/${id}`, { method: 'DELETE' }),
+
+  orders: (params) => request(`/api/orders?${qs(params)}`),
+  orderStats: () => request('/api/orders/stats'),
+  createOrder: (body) => request('/api/orders', { method: 'POST', body }),
   updateOrderStatus: (id, status) =>
     request(`/api/orders/${id}/status`, { method: 'PATCH', body: { status } }),
 }

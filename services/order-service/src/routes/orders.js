@@ -9,9 +9,6 @@ const router = express.Router();
 const isObjectId = (id) => mongoose.isValidObjectId(id) && String(new mongoose.Types.ObjectId(id)) === id;
 const round2 = (n) => Math.round(n * 100) / 100;
 
-// Identité vérifiée injectée par l'API Gateway (le gateway écrase tout en-tête fourni par le client).
-const currentUserId = (req) => req.get('x-user-id') || null;
-
 function httpError(status, message, details) {
   return Object.assign(new Error(message), { status, details });
 }
@@ -72,9 +69,7 @@ router.get('/', async (req, res) => {
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 20, 1), 100);
 
   const filter = {};
-  const userId = currentUserId(req);
-  if (userId) filter.customerId = userId;
-  else if (typeof req.query.customerId === 'string') filter.customerId = req.query.customerId;
+  if (typeof req.query.customerId === 'string') filter.customerId = req.query.customerId;
   if (typeof req.query.status === 'string') {
     const status = req.query.status.toUpperCase();
     if (!STATUSES.includes(status)) throw httpError(400, `status doit valoir : ${STATUSES.join(', ')}`);
@@ -88,20 +83,33 @@ router.get('/', async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
+// GET /api/orders/stats : compteurs par statut et chiffre d'affaires (hors commandes annulées)
+router.get('/stats', async (_req, res) => {
+  const rows = await Order.aggregate([
+    { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$total' } } },
+  ]);
+  const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+  let total = 0;
+  let revenue = 0;
+  for (const r of rows) {
+    byStatus[r._id] = r.count;
+    total += r.count;
+    if (r._id !== 'CANCELLED') revenue += r.amount;
+  }
+  res.json({ total, byStatus, revenue: round2(revenue) });
+});
+
 // GET /api/orders/:id
 router.get('/:id', async (req, res) => {
   if (!isObjectId(req.params.id)) throw httpError(404, 'Commande introuvable');
   const order = await Order.findById(req.params.id);
-  const userId = currentUserId(req);
-  if (!order || (userId && order.customerId !== userId)) throw httpError(404, 'Commande introuvable');
+  if (!order) throw httpError(404, 'Commande introuvable');
   res.json(order);
 });
 
 // POST /api/orders
 router.post('/', async (req, res) => {
   const data = parseCreateBody(req.body);
-  const userId = currentUserId(req);
-  if (userId && data.customerId !== userId) throw httpError(403, 'Vous ne pouvez commander que pour votre propre compte');
 
   let customer;
   try {
@@ -133,8 +141,7 @@ router.patch('/:id/status', async (req, res) => {
   if (!STATUSES.includes(next)) throw httpError(400, `status doit valoir : ${STATUSES.join(', ')}`);
 
   const current = await Order.findById(req.params.id);
-  const userId = currentUserId(req);
-  if (!current || (userId && current.customerId !== userId)) throw httpError(404, 'Commande introuvable');
+  if (!current) throw httpError(404, 'Commande introuvable');
   if (!TRANSITIONS[current.status].includes(next)) {
     throw httpError(409, `Transition ${current.status} -> ${next} interdite`);
   }

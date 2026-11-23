@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../AuthContext'
 import ErrorMessage from './ErrorMessage'
 
-export default function AuthForm() {
+export default function Login() {
   const { signIn, signUp } = useAuth()
   const [mode, setMode] = useState('signin')
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' })
@@ -27,6 +27,7 @@ export default function AuthForm() {
 
   return (
     <form className="card auth" onSubmit={submit}>
+      <h1>Espace vendeur</h1>
       <h2>{mode === 'signin' ? 'Connexion' : 'Créer un compte'}</h2>
       {mode === 'signup' && (
         <div className="row">

@@ -1,17 +1,16 @@
 # E-Commerce App (microservices)
 
 ```
-Frontend (React, :5173)
+Back-office vendeur (React, :5173) : login → Dashboard / Clients / Produits / Commandes
       │  HTTP + JWT
       ▼
 API Gateway (YARP, :5000) ── vérifie JWT + clé Redis ──► Redis (:6379)
       ├─ /api/auth/*       → identity-service (.NET, :5180)   signUp / signIn, MongoDB identitydb, tokens dans Redis
-      ├─ /api/products/*   → product-service  (.NET, :5165)   GET public, écriture authentifiée
+      ├─ /api/products/*   → product-service  (.NET, :5165)
       ├─ /api/customers/*  → customer-service (.NET, :5157)
       └─ /api/orders/*     → order-service    (Node, :3100)
 
 RabbitMQ (exchange topic `ecommerce.events`)
-  user.registered  identity  → customer   crée le profil client (id = id utilisateur)
   order.created    order     → customer   compte la commande / total dépensé
                              → product    décrémente le stock
   order.cancelled  order     → customer   annule le compte
@@ -39,7 +38,7 @@ Le frontend ne parle qu'au gateway (`VITE_API_URL`, défaut `http://localhost:50
 
 ## Tokens
 
-`signup`/`signin` renvoient un JWT (HS256, 60 min). Son `jti` est stocké dans Redis (`auth:token:{jti}`, TTL = durée du token).
+Toutes les routes sauf `/api/auth/*` exigent un token. `signup`/`signin` renvoient un JWT (HS256, 60 min). Son `jti` est stocké dans Redis (`auth:token:{jti}`, TTL = durée du token).
 Le gateway refuse tout token dont la clé a disparu : supprimer la clé = révoquer la session.
 `Jwt:Key` est partagée entre identity-service et gateway : à remplacer en production (variable d'environnement `Jwt__Key`).
 

@@ -47,11 +47,11 @@ app.MapGet("/health", async (IMongoDatabase db, CancellationToken ct) =>
 
 var products = app.MapGroup("/api/products").WithTags("Products");
 
-products.MapGet("/", async (ProductRepository repo, string? search, string? category, int? page, int? pageSize, CancellationToken ct) =>
+products.MapGet("/", async (ProductRepository repo, string? search, string? category, int? maxStock, int? page, int? pageSize, CancellationToken ct) =>
 {
     var p = Math.Max(page ?? 1, 1);
     var size = Math.Clamp(pageSize ?? 20, 1, 100);
-    var result = await repo.ListAsync(search, category, p, size, ct);
+    var result = await repo.ListAsync(search, category, maxStock, p, size, ct);
     return Results.Ok(new PagedResult<ProductResponse>(
         result.Items.Select(ProductResponse.From).ToList(), result.Total, result.Page, result.PageSize));
 });

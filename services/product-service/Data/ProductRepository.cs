@@ -12,7 +12,7 @@ public class ProductRepository(IMongoDatabase database)
 
     public static bool IsValidId(string id) => ObjectId.TryParse(id, out _);
 
-    public async Task<PagedResult<Product>> ListAsync(string? search, string? category, int page, int pageSize, CancellationToken ct)
+    public async Task<PagedResult<Product>> ListAsync(string? search, string? category, int? maxStock, int page, int pageSize, CancellationToken ct)
     {
         var f = Builders<Product>.Filter;
         var filter = f.Empty;
@@ -22,6 +22,8 @@ public class ProductRepository(IMongoDatabase database)
             filter &= f.Or(f.Regex(p => p.Name, regex), f.Regex(p => p.Description, regex));
         }
         if (!string.IsNullOrWhiteSpace(category)) filter &= f.Eq(p => p.Category, category.Trim());
+
+        if (maxStock is not null) filter &= f.Lte(p => p.Stock, maxStock.Value);
 
         var total = await _products.CountDocumentsAsync(filter, cancellationToken: ct);
         var items = await _products.Find(filter)
