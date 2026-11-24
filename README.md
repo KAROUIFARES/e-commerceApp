@@ -17,6 +17,19 @@ RabbitMQ (exchange topic `ecommerce.events`)
                              → product    restitue le stock
 ```
 
+## Développement local (script)
+
+```bash
+./run-dev.sh start     # infra Docker (Mongo, RabbitMQ, Redis) + 6 applications en local
+./run-dev.sh status    # état de chaque service
+./run-dev.sh logs gateway
+./run-dev.sh stop      # arrête les applications (l'infra reste active)
+./run-dev.sh down      # arrête aussi l'infra (données conservées)
+```
+
+Prérequis : Docker, .NET SDK 10, Node.js 24 (Git Bash sous Windows). Les logs sont dans `.dev/logs/`.
+Si la pile Docker complète tourne (`docker compose up`), arrête-la d'abord (`docker compose down`) : les ports 5000 et 5173 seraient en conflit.
+
 ## Démarrage
 
 ```bash

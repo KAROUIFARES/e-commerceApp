@@ -6,7 +6,7 @@ export default function Layout({ route, children }) {
   return (
     <>
       <header className="topbar">
-        <strong className="brand">E-Commerce · Vendeur</strong>
+        <strong className="brand">E-CommerceApp · Vendeur</strong>
         <nav aria-label="Navigation principale">
           {ROUTES.map((r) => (
             <a key={r.path} href={`#/${r.path}`} className={route === r.path ? 'active' : ''} aria-current={route === r.path ? 'page' : undefined}>
