@@ -1,0 +1,142 @@
+name: ecomm
+
+x-infra-deps: &infra-deps
+  mongo:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
+x-mongo-uri: &mongo-uri mongodb://admin:${MONGO_PASSWORD:-admin123}@mongo:27017/?authSource=admin
+
+services:
+  # ---------- Infrastructure ----------
+  mongo:
+    image: mongo:7.0
+    container_name: ecomm-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodbdata:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: ecomm-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ecomm-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Microservices ----------
+  identity-service:
+    build: ./services/identity-service
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-identity-service:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on: *infra-deps
+    environment:
+      ConnectionStrings__Mongo: *mongo-uri
+      ConnectionStrings__Redis: redis:6379
+      Jwt__Key: ${JWT_KEY:-dev-only-secret-change-me-in-production-0123456789}
+      RabbitMq__HostName: rabbitmq
+
+  product-service:
+    build: ./services/product-service
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-product-service:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on: *infra-deps
+    environment:
+      ConnectionStrings__Mongo: *mongo-uri
+      RabbitMq__HostName: rabbitmq
+
+  customer-service:
+    build: ./services/customer-service
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-customer-service:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on: *infra-deps
+    environment:
+      ConnectionStrings__Mongo: *mongo-uri
+      RabbitMq__HostName: rabbitmq
+
+  order-service:
+    build: ./services/order-service
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-order-service:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on: *infra-deps
+    environment:
+      PORT: "3100"
+      MONGO_URI: mongodb://admin:${MONGO_PASSWORD:-admin123}@mongo:27017/orderdb?authSource=admin
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      CUSTOMER_SERVICE_URL: http://customer-service:8080
+
+  api-gateway:
+    build: ./services/ApiGateWay
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-api-gateway:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on:
+      - redis
+      - identity-service
+      - product-service
+      - customer-service
+      - order-service
+    ports:
+      - "5000:8080"
+    environment:
+      ConnectionStrings__Redis: redis:6379
+      Jwt__Key: ${JWT_KEY:-dev-only-secret-change-me-in-production-0123456789}
+      Cors__Origins__0: http://localhost:5173
+      ReverseProxy__Clusters__identity__Destinations__d1__Address: http://identity-service:8080
+      ReverseProxy__Clusters__products__Destinations__d1__Address: http://product-service:8080
+      ReverseProxy__Clusters__customers__Destinations__d1__Address: http://customer-service:8080
+      ReverseProxy__Clusters__orders__Destinations__d1__Address: http://order-service:3100
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${API_URL:-http://localhost:5000}
+    image: ${DOCKERHUB_USER:-karouifares}/ecomm-frontend:${TAG:-1.0.0}
+    restart: on-failure
+    depends_on:
+      - api-gateway
+    ports:
+      - "5173:80"
+
+volumes:
+  mongodbdata:
+  rabbitmqdata:
+  redisdata:
