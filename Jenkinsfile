@@ -11,7 +11,6 @@ pipeline {
   }
 
   environment {
-    DOCKERHUB_USER = 'karouifares'
     TAG            = "1.0.${BUILD_NUMBER}"
     COMPOSE_PARALLEL_LIMIT = '2'
     BUILDX_NO_DEFAULT_ATTESTATIONS = '1'
@@ -22,6 +21,18 @@ pipeline {
     stage('Git') {
       steps {
         checkout scm
+      }
+    }
+
+    stage('Configure Docker Hub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                                          usernameVariable: 'DH_USER',
+                                          passwordVariable: 'DH_PASS')]) {
+          script {
+            env.DOCKERHUB_USER = env.DH_USER
+          }
+        }
       }
     }
 
