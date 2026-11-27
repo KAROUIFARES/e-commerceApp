@@ -37,10 +37,10 @@ export default function Dashboard() {
 
   return (
     <section>
-      <h1>Jawher ya techa</h1>
+      <h1>Aziz ya techa</h1>
       <div className="kpis">
         <a className="card kpi" href="#/clients">
-          <span>Client</span>
+          <span>Clients</span>
           <strong>{customers.total}</strong>
         </a>
         <a className="card kpi" href="#/produits">
