@@ -40,7 +40,7 @@ export default function Dashboard() {
       <h1>Dashboard</h1>
       <div className="kpis">
         <a className="card kpi" href="#/clients">
-          <span>Clients</span>
+          <span>زبون</span>
           <strong>{customers.total}</strong>
         </a>
         <a className="card kpi" href="#/produits">
